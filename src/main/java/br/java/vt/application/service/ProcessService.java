@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Supplier;
 
+import static br.java.vt.infrastructure.VTask.shutdown;
 import static java.lang.Thread.sleep;
 
 public class ProcessService {
@@ -17,7 +18,7 @@ public class ProcessService {
         VTask.of("Process started")
             .map(this::println)
             .flatMap(result -> {
-                println(result.concat(" 2nd step"));
+                println("2nd step");
                 return VTask.of("Process completed");
             })
             .sequential(result -> getTasks())
@@ -25,21 +26,25 @@ public class ProcessService {
                 println("Error: " + error.getMessage());
                 return Collections.singletonList(VTask.of("Error handled"));
             })
+            .map(result -> {
+                println("3nd step");
+                return VTask.of("Process completed");
+            })
             .parallel(result -> getTasks())
             .onErrorResume(error -> {
                 println("Error: " + error.getMessage());
                 return Collections.singletonList(VTask.of("Error handled"));
             })
             .then();
+
+        shutdown();
     }
 
     private Supplier<Object> getTask() {
         return () -> {
             try {
-                Random r = new Random();
-                int rv = r.nextInt(10);
-
-                System.out.println("task sleep: ".concat(String.valueOf(rv)));
+                int rv = randomMilli();
+                System.out.println("getTask sleep: ".concat(String.valueOf(rv)));
                 sleep(rv);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
@@ -52,13 +57,25 @@ public class ProcessService {
         return List.of(
             getTask(),
             () -> {
-                System.out.println("task DATA_2");
-                return DataEnum.DATA_2.getValue();
+                int rv = randomMilli();
+                try {
+                    sleep(rv);
+                    System.out.println("task DATA_2, sleep: ".concat(String.valueOf(rv)));
+                    return DataEnum.DATA_2.getValue();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             },
             () -> {
-                String rt = random();
-                System.out.println("task: ".concat(rt));
-                return rt;
+                int rv = randomMilli();
+                try {
+                    String rt = random();
+                    System.out.println("task: ".concat(rt).concat(", sleep: ".concat(String.valueOf(rv))));
+                    sleep(rv);
+                    return rt;
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
         );
     }
@@ -70,6 +87,11 @@ public class ProcessService {
     private String println(String txt) {
         System.out.println(txt);
         return txt;
+    }
+
+    private int randomMilli(){
+        Random r = new Random();
+        return r.nextInt(1000, 9000);
     }
 
 }
